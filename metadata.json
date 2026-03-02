@@ -1,0 +1,5 @@
+{
+  "name": "SystemX GLOBAL",
+  "description": "Real-time global seismic activity monitor and station status dashboard using USGS and FDSN data streams.",
+  "requestFramePermissions": ["geolocation"]
+}

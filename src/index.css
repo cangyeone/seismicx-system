@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-bg: #0a0a0a;
+  --color-card: #141414;
+  --color-accent: #f97316; /* Orange-500 */
+  --color-border: #262626;
+  --color-text-muted: #737373;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-white font-sans antialiased;
+  }
+}
+
+.data-grid-bg {
+  background-image: radial-gradient(circle at 1px 1px, #262626 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.quake-pulse {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.33); opacity: 1; }
+  80%, 100% { opacity: 0; }
+}
