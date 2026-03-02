@@ -1,5 +1,5 @@
 <p align="left">
-  <img src="logo2.png" alt="SeismoX System Logo"/>
+  <img src="logo.png" alt="SeismoX System Logo"/>
 </p>
 
 # SystemX GLOBAL - 全球地震监测与 AI 实时拾取系统
