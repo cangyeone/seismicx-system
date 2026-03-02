@@ -60,13 +60,17 @@ class SeismicService {
           const props = feature.properties;
           const coords = feature.geometry.coordinates;
           
+          // ✅ 修复字段映射：优先使用 code 字段，其次使用 station/name
+          const stationCode = props.code || props.station || props.name || "UNK";
+          const siteName = props.siteName || props.site_name || props.station || "Seismic Station";
+          
           stations.push({
-            code: props.code || "UNK",
+            code: stationCode,
             network: props.network || "IU",
             latitude: coords[1],
             longitude: coords[0],
             elevation: coords[2] || 0,
-            siteName: props.name || "Seismic Station",
+            siteName: siteName,
             status: Math.random() > 0.1 ? 'active' : 'inactive'
           });
         });

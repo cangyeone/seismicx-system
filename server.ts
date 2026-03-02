@@ -128,14 +128,18 @@ async function syncStationData() {
     
     const stations = [];
     for (const feature of allStations) {
+      const stationCode = feature.properties.station || 'UNK';
       const station = {
-        id: `${feature.properties.network || 'SIM'}.${feature.properties.station || 'UNK'}`,
+        id: `${feature.properties.network || 'SIM'}.${stationCode}`,
         network: feature.properties.network || 'SIM',
-        name: feature.properties.station || 'Unknown',
+        code: stationCode,  // ✅ 添加前端期望的 code 字段
+        name: stationCode,  // name 和 code 保持一致
+        station: stationCode,  // station 字段也保持一致
         latitude: feature.geometry.coordinates[1],
         longitude: feature.geometry.coordinates[0],
         elevation: feature.geometry.coordinates[2],
         site_name: feature.properties.site_name || 'Unknown Location',
+        siteName: feature.properties.site_name || 'Unknown Location',  // ✅ 添加前端期望的 siteName 字段
         start_date: feature.properties.start_date ? new Date(feature.properties.start_date).getTime() : null,
         end_date: feature.properties.end_date ? new Date(feature.properties.end_date).getTime() : null,
         channels: JSON.stringify(feature.properties.channels || [])
@@ -294,13 +298,81 @@ picker.init();
 // 存储连接的客户端
 const connectedClients = new Set<WebSocket>();
 
+// 存储来自Python采集器的WebSocket连接
+let pythonCollectorSocket: WebSocket | null = null;
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const COLLECTOR_PORT = 8765; // Python采集器连接端口
   const httpServer = createServer(app);
 
-  // WebSocket Server for Waveform Data
+  // WebSocket Server for Waveform Data (前端连接)
   const wss = new WebSocketServer({ server: httpServer });
+
+  // WebSocket Server for Python Collector (采集器连接)
+  const collectorHttpServer = createServer();
+  const collectorWss = new WebSocketServer({ server: collectorHttpServer });
+
+  // 处理Python采集器连接
+  collectorWss.on("connection", (ws) => {
+    console.log("Python collector connected");
+    pythonCollectorSocket = ws;
+    
+    ws.on("message", (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        console.log("Received from collector:", message.type);
+        
+        // 转发台站数据到所有前端客户端
+        if (message.type === 'stations_data') {
+          const stationsData = message.data || message.stations;
+          const broadcastMessage = JSON.stringify({
+            type: 'stations_data',
+            stations: stationsData
+          });
+          
+          connectedClients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(broadcastMessage);
+            }
+          });
+          console.log(`Broadcasted ${stationsData?.length || 0} stations to ${connectedClients.size} clients`);
+        }
+        // 转发波形数据到所有前端客户端
+        else if (message.type === 'waveform_data') {
+          const broadcastMessage = JSON.stringify({
+            type: 'waveform_data',
+            data: message.data
+          });
+          
+          connectedClients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(broadcastMessage);
+            }
+          });
+          console.log(`Broadcasted waveform data for ${message.data?.station}`);
+        }
+        // 可以在这里添加其他类型数据的转发逻辑
+      } catch (error) {
+        console.error("Error processing collector message:", error);
+      }
+    });
+
+    ws.on("close", () => {
+      console.log("Python collector disconnected");
+      pythonCollectorSocket = null;
+    });
+
+    ws.on("error", (error) => {
+      console.error("Python collector connection error:", error);
+      pythonCollectorSocket = null;
+    });
+  });
+
+  collectorHttpServer.listen(COLLECTOR_PORT, () => {
+    console.log(`Collector WebSocket server running on ws://localhost:${COLLECTOR_PORT}`);
+  });
 
   wss.on("connection", (ws) => {
     console.log("Client connected to waveform stream");
@@ -358,6 +430,21 @@ async function startServer() {
         }
       }
     }, 10); // 100Hz
+
+    // 处理前端客户端的消息（如波形请求）
+    ws.on("message", (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        
+        // 转发波形请求到 Python 采集器
+        if (message.type === 'request_waveform' && pythonCollectorSocket) {
+          console.log(`Forwarding waveform request for ${message.network}.${message.station}`);
+          pythonCollectorSocket.send(JSON.stringify(message));
+        }
+      } catch (error) {
+        console.error("Error processing client message:", error);
+      }
+    });
 
     ws.on("close", () => {
       clearInterval(interval);
@@ -473,9 +560,11 @@ async function startServer() {
           id: station.id,
           properties: {
             network: station.network,
+            code: station.code || station.name,  // ✅ 确保返回 code 字段
             station: station.name,
             name: station.name,
             site_name: station.site_name,
+            siteName: station.siteName || station.site_name,  // ✅ 同时返回 siteName
             start_date: station.start_date,
             end_date: station.end_date,
             channels: JSON.parse(station.channels || '[]')

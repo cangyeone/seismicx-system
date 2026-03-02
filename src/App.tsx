@@ -43,9 +43,10 @@ const App: React.FC = () => {
   const [selectedStation, setSelectedStation] = useState<SeismicStation | null>(null);
   const [activeTab, setActiveTab] = useState<'quakes' | 'stations'>('quakes');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [refreshingStations, setRefreshingStations] = useState(false);
   
   // WebSocket integration for real-time updates
-  const { isConnected, newEarthquakeAnimation } = useWebSocket();
+  const { isConnected, newEarthquakeAnimation, earthquakeEvents, stationsData, latestWaveforms, sendMessage } = useWebSocket();
   const { theme } = useTheme();
 
   const fetchData = useCallback(async () => {
@@ -77,6 +78,29 @@ const App: React.FC = () => {
       console.log('New earthquake animation triggered:', newEarthquakeAnimation);
     }
   }, [newEarthquakeAnimation]);
+
+  // 刷新台站列表功能
+  const refreshStations = useCallback(async () => {
+    setRefreshingStations(true);
+    try {
+      // 通过WebSocket请求刷新台站数据
+      sendMessage({
+        type: 'request_stations',
+        timestamp: new Date().toISOString()
+      });
+      
+      // 同时也从原有API获取数据作为备选
+      const stationsData = await seismicService.getStations();
+      setStations(stationsData);
+      setLastUpdate(new Date());
+      
+      console.log('台站列表刷新请求已发送');
+    } catch (error) {
+      console.error("刷新台站列表失败", error);
+    } finally {
+      setRefreshingStations(false);
+    }
+  }, [sendMessage]);
 
   const significantQuakes = earthquakes.filter(q => q.mag >= 4.5);
   const activeStations = stations.filter(s => s.status === 'active');
@@ -220,6 +244,16 @@ const App: React.FC = () => {
                 >
                   Stations
                 </button>
+                {activeTab === 'stations' && (
+                  <button 
+                    onClick={refreshStations}
+                    disabled={refreshingStations}
+                    className="px-3 py-4 text-text-muted hover:text-[color:var(--color-text)] transition-colors disabled:opacity-50"
+                    title="刷新台站列表"
+                  >
+                    <RefreshCw className={cn("w-4 h-4", refreshingStations && "animate-spin")} />
+                  </button>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -287,8 +321,9 @@ const App: React.FC = () => {
                               station.status === 'active' ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]" : "bg-red-500"
                             )} />
                             <div>
-                              <h3 className="text-sm font-bold font-mono tracking-tight">{station.network}.{station.code}</h3>
-                              <p className="text-xs text-text-muted truncate max-w-[240px] mt-0.5">{station.siteName}</p>
+                              {/* ✅ 修复显示逻辑：优先使用 code 字段 */}
+                              <h3 className="text-sm font-bold font-mono tracking-tight">{station.network}.{station.code || station.station || station.name || 'UNK'}</h3>
+                              <p className="text-xs text-text-muted truncate max-w-[240px] mt-0.5">{station.siteName || station.site_name || 'Unknown Location'}</p>
                             </div>
                           </div>
                           <div className="text-xs font-mono text-text-muted text-right opacity-60">
@@ -370,7 +405,7 @@ const App: React.FC = () => {
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="absolute top-6 right-6 w-80 bg-card/95 backdrop-blur-2xl border border-border rounded-2xl p-6 shadow-2xl z-20"
+                className="absolute top-6 right-6 w-80 bg-card/95 backdrop-blur-2xl border border-border rounded-2xl p-6 shadow-2xl z-10"
               >
                 <div className="flex items-center justify-between mb-5">
                   <span className="text-xs font-mono text-text-muted uppercase tracking-widest font-bold">Station Detail</span>
@@ -407,6 +442,70 @@ const App: React.FC = () => {
                 </div>
               </motion.div>
             )}
+            
+            {/* 实时数据状态面板 */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1, 
+                y: 0,
+                top: selectedStation && activeTab === 'stations' ? 'auto' : '1.5rem',
+                bottom: selectedStation && activeTab === 'stations' ? '1.5rem' : 'auto'
+              }}
+              className={`absolute right-6 z-20 bg-card/95 backdrop-blur-2xl border border-border rounded-2xl p-4 shadow-2xl max-w-xs transition-all duration-300 ${
+                selectedStation && activeTab === 'stations' ? 'bottom-6' : 'top-6'
+              }`}
+            >
+              <h3 className="text-sm font-bold text-text-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                实时数据状态
+              </h3>
+              
+              <div className="space-y-3">
+                {/* WebSocket连接状态 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-muted">WebSocket</span>
+                  <span className={cn(
+                    "font-bold px-2 py-1 rounded",
+                    isConnected ? "bg-emerald-500/20 text-emerald-500" : "bg-red-500/20 text-red-500"
+                  )}>
+                    {isConnected ? '已连接' : '断开'}
+                  </span>
+                </div>
+
+                {/* 地震事件数量 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-muted">地震事件</span>
+                  <span className="font-bold text-accent">{earthquakeEvents.length}</span>
+                </div>
+
+                {/* 台站数量 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-muted">监测台站</span>
+                  <span className="font-bold text-accent">{stationsData.length}</span>
+                </div>
+
+                {/* 波形数据 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-muted">实时波形</span>
+                  <span className="font-bold text-accent">{latestWaveforms.length}</span>
+                </div>
+              </div>
+
+              {/* 连接详情 */}
+              {isConnected && (
+                <div className="mt-3 pt-3 border-t border-border text-xs text-text-muted">
+                  <div className="flex items-center gap-1 mb-1">
+                    <Radio className="w-3 h-3 text-emerald-500" />
+                    <span>Python采集器已连接</span>
+                  </div>
+                  <div className="text-[10px] opacity-70">
+                    使用ObsPy库获取实时地震数据
+                  </div>
+                </div>
+              )}
+            </motion.div>
           </div>
 
           {/* Bottom Info Bar */}

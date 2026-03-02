@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "collector": "python seismic_collector.py",
+    "collector-install": "pip install -r requirements.txt"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

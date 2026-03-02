@@ -38,6 +38,15 @@ export const AnimatedSeismicMap: React.FC<AnimatedMapProps> = ({
       const width = containerRef.current.clientWidth;
       const height = containerRef.current.clientHeight;
 
+      // 检测当前主题
+      const isDark = document.documentElement.classList.contains('dark') || 
+                     document.body.classList.contains('dark') ||
+                     window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      // 根据主题设置地图颜色
+      const landColor = isDark ? '#1a1a1a' : '#d1d5db';  // 深色：深灰，浅色：浅灰
+      const strokeColor = isDark ? '#333' : '#9ca3af';   // 深色：深边框，浅色：中灰边框
+
       const svg = d3.select(svgRef.current);
       svg.selectAll("*").remove();
 
@@ -59,8 +68,8 @@ export const AnimatedSeismicMap: React.FC<AnimatedMapProps> = ({
           .enter()
           .append("path")
           .attr("d", path)
-          .attr("fill", "#1a1a1a")
-          .attr("stroke", "#333")
+          .attr("fill", landColor)
+          .attr("stroke", strokeColor)
           .attr("stroke-width", 0.5);
 
         // Draw stations
@@ -140,6 +149,15 @@ export const AnimatedSeismicMap: React.FC<AnimatedMapProps> = ({
 
     resizeObserver.observe(containerRef.current);
     updateDimensions();
+    
+    // 监听主题变化
+    const observer = new MutationObserver(() => {
+      updateDimensions();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
 
     return () => resizeObserver.disconnect();
   }, [earthquakes, stations, onSelectQuake, onSelectStation, activeTab, selectedStationCode]);

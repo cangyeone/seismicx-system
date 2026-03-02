@@ -2,7 +2,7 @@ import numpy as np
 import torch 
 import obspy # pip install obspy 
 
-mname = "pickers/ustcpicker.9_sc.jit" # 
+mname = "pickers/pnsn.v3.diff.jit" # 
 device = torch.device("cpu") #infer device 
 sess = torch.jit.load(mname)
 sess.eval() # inference mode 

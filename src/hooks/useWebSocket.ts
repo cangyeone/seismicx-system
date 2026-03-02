@@ -13,6 +13,9 @@ interface NewEarthquakeAnimation {
 export const useWebSocket = (url: string = 'ws://localhost:3000') => {
   const [isConnected, setIsConnected] = useState(false);
   const [newEarthquakeAnimation, setNewEarthquakeAnimation] = useState<NewEarthquakeAnimation | null>(null);
+  const [earthquakeEvents, setEarthquakeEvents] = useState<any[]>([]);
+  const [stationsData, setStationsData] = useState<any[]>([]);
+  const [latestWaveforms, setLatestWaveforms] = useState<any[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -44,6 +47,24 @@ export const useWebSocket = (url: string = 'ws://localhost:3000') => {
               
             case 'initial_data':
               console.log('Initial data received:', data);
+              break;
+              
+            case 'earthquake_events':
+              // 处理Python采集器发送的地震事件数据
+              console.log('Received earthquake events:', data.events?.length || 0);
+              setEarthquakeEvents(prev => [...prev, ...(data.events || [])].slice(-100)); // 保留最新100条
+              break;
+              
+            case 'stations_data':
+              // 处理台站数据
+              console.log('Received stations data:', data.stations?.length || 0);
+              setStationsData(data.stations || []);
+              break;
+              
+            case 'waveform_data':
+              // 处理波形数据
+              console.log('Received waveform data:', data.data?.station);
+              setLatestWaveforms(prev => [...prev.slice(-50), data.data]); // 保留最新的50条波形数据
               break;
               
             default:
@@ -78,6 +99,9 @@ export const useWebSocket = (url: string = 'ws://localhost:3000') => {
   return {
     isConnected,
     newEarthquakeAnimation,
+    earthquakeEvents,
+    stationsData,
+    latestWaveforms,
     sendMessage: (message: WebSocketMessage) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify(message));
