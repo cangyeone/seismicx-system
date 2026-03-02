@@ -1,25 +1,62 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
+/* Theme Variables */
+:root[data-theme="dark"] {
   --color-bg: #0a0a0a;
   --color-card: #141414;
   --color-accent: #f97316; /* Orange-500 */
   --color-border: #262626;
+  --color-text: #ffffff;
   --color-text-muted: #737373;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f8fafc;
+  --color-card: #ffffff;
+  --color-accent: #ea580c; /* Orange-600 */
+  --color-border: #e2e8f0;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-bg: var(--color-bg);
+  --color-card: var(--color-card);
+  --color-accent: var(--color-accent);
+  --color-border: var(--color-border);
+  --color-text-muted: var(--color-text-muted);
 }
 
 @layer base {
   body {
-    @apply bg-bg text-white font-sans antialiased;
+    @apply bg-bg text-[color:var(--color-text)] font-sans antialiased;
   }
 }
 
-.data-grid-bg {
-  background-image: radial-gradient(circle at 1px 1px, #262626 1px, transparent 0);
-  background-size: 24px 24px;
+/* Theme-specific styles */
+[data-theme="dark"] {
+  .data-grid-bg {
+    background-image: radial-gradient(circle at 1px 1px, #262626 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+}
+
+[data-theme="light"] {
+  .data-grid-bg {
+    background-image: radial-gradient(circle at 1px 1px, #e2e8f0 1px, transparent 0);
+    background-size: 24px 24px;
+  }
 }
 
 .quake-pulse {
@@ -29,4 +66,16 @@
 @keyframes pulse-ring {
   0% { transform: scale(0.33); opacity: 1; }
   80%, 100% { opacity: 0; }
+}
+
+/* Smooth theme transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Prevent transitions on initial load */
+.loading * {
+  transition: none !important;
 }

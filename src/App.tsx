@@ -15,14 +15,26 @@ import { format } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { seismicService, Earthquake, SeismicStation } from './services/seismicService';
-import { SeismicMap } from './components/SeismicMap';
+import { AnimatedSeismicMap } from './components/AnimatedSeismicMap';
 import { WaveformDisplay } from './components/WaveformDisplay';
+import { useWebSocket } from './hooks/useWebSocket';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeToggle, ThemeSelector } from './components/ThemeToggle';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export default function App() {
+// 主应用组件包装器
+const AppWrapper: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  );
+};
+
+const App: React.FC = () => {
   const [earthquakes, setEarthquakes] = useState<Earthquake[]>([]);
   const [stations, setStations] = useState<SeismicStation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +42,11 @@ export default function App() {
   const [selectedQuake, setSelectedQuake] = useState<Earthquake | null>(null);
   const [selectedStation, setSelectedStation] = useState<SeismicStation | null>(null);
   const [activeTab, setActiveTab] = useState<'quakes' | 'stations'>('quakes');
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
+  
+  // WebSocket integration for real-time updates
+  const { isConnected, newEarthquakeAnimation } = useWebSocket();
+  const { theme } = useTheme();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -50,15 +67,24 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000); // Update every minute
+    const interval = setInterval(fetchData, 300000); // Update every 5 minutes (reduced frequency due to WebSocket)
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Handle new earthquake animations
+  useEffect(() => {
+    if (newEarthquakeAnimation) {
+      console.log('New earthquake animation triggered:', newEarthquakeAnimation);
+    }
+  }, [newEarthquakeAnimation]);
 
   const significantQuakes = earthquakes.filter(q => q.mag >= 4.5);
   const activeStations = stations.filter(s => s.status === 'active');
 
   return (
-    <div className="h-screen bg-bg text-white selection:bg-accent/30 flex flex-col overflow-hidden">
+    <div className={`h-screen bg-bg text-[color:var(--color-text)] selection:bg-accent/30 flex flex-col overflow-hidden transition-colors duration-300 ${
+      theme === 'dark' ? 'loading' : ''
+    }`}>
       {/* Header */}
       <header className="h-20 border-b border-border flex items-center justify-between px-8 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="flex items-center gap-4">
@@ -71,7 +97,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6">
           <div className="hidden md:flex items-center gap-6 text-sm font-mono">
             <div className="flex flex-col items-end">
               <span className="text-text-muted uppercase text-[10px]">Last Sync</span>
@@ -83,6 +109,28 @@ export default function App() {
               <span className="text-emerald-500 font-bold">{activeStations.length} / {stations.length}</span>
             </div>
           </div>
+          
+          {/* Theme Toggle */}
+          <div className="relative">
+            <ThemeToggle 
+              size="md"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowThemeSelector(!showThemeSelector);
+              }}
+            />
+            {showThemeSelector && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                className="absolute top-14 right-0 z-50"
+              >
+                <ThemeSelector />
+              </motion.div>
+            )}
+          </div>
+          
           <button 
             onClick={fetchData}
             disabled={loading}
@@ -92,6 +140,14 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* 点击外部关闭主题选择器 */}
+      {showThemeSelector && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowThemeSelector(false)}
+        />
+      )}
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden p-0 gap-0 h-full">
         {/* Sidebar / List View */}
@@ -129,7 +185,7 @@ export default function App() {
                     <WaveformDisplay stationCode={`${selectedStation.network}.${selectedStation.code}`} />
                     <button 
                       onClick={() => setSelectedStation(null)}
-                      className="w-full mt-2 text-[10px] text-text-muted hover:text-white uppercase font-mono py-1 border border-border rounded hover:bg-white/5 transition-all"
+                      className="w-full mt-2 text-[10px] text-text-muted hover:text-[color:var(--color-text)] uppercase font-mono py-1 border border-border rounded hover:bg-white/5 transition-all"
                     >
                       Close Stream
                     </button>
@@ -150,7 +206,7 @@ export default function App() {
                   onClick={() => setActiveTab('quakes')}
                   className={cn(
                     "flex-1 py-4 text-sm font-bold uppercase tracking-widest transition-all border-b-2",
-                    activeTab === 'quakes' ? "border-accent text-white bg-accent/5" : "border-transparent text-text-muted hover:text-white"
+                    activeTab === 'quakes' ? "border-accent text-[color:var(--color-text)] bg-accent/5" : "border-transparent text-text-muted hover:text-[color:var(--color-text)]"
                   )}
                 >
                   Recent Events
@@ -159,7 +215,7 @@ export default function App() {
                   onClick={() => setActiveTab('stations')}
                   className={cn(
                     "flex-1 py-4 text-sm font-bold uppercase tracking-widest transition-all border-b-2",
-                    activeTab === 'stations' ? "border-accent text-white bg-accent/5" : "border-transparent text-text-muted hover:text-white"
+                    activeTab === 'stations' ? "border-accent text-[color:var(--color-text)] bg-accent/5" : "border-transparent text-text-muted hover:text-[color:var(--color-text)]"
                   )}
                 >
                   Stations
@@ -204,7 +260,7 @@ export default function App() {
                               <span>{quake.coordinates[2].toFixed(1)}km depth</span>
                             </p>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-white transition-colors" />
+                          <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-[color:var(--color-text)] transition-colors" />
                         </button>
                       ))}
                     </motion.div>
@@ -252,7 +308,7 @@ export default function App() {
         <section className="flex-1 flex flex-col min-h-0 relative h-full">
           <div className="flex-1 relative min-h-0 overflow-hidden">
             <div className="absolute inset-0">
-              <SeismicMap 
+              <AnimatedSeismicMap 
                 earthquakes={earthquakes} 
                 stations={stations} 
                 onSelectQuake={setSelectedQuake}
@@ -260,6 +316,7 @@ export default function App() {
                 selectedQuakeId={selectedQuake?.id}
                 selectedStationCode={selectedStation?.code}
                 activeTab={activeTab}
+                newEarthquakeAnimation={newEarthquakeAnimation}
               />
             </div>
             
@@ -380,13 +437,15 @@ export default function App() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #262626;
+          background: var(--color-border);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #404040;
+          background: ${theme === 'dark' ? '#404040' : '#cbd5e1'};
         }
       `}</style>
     </div>
   );
-}
+};
+
+export default AppWrapper;

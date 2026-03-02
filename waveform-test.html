@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket 波形测试</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #1a1a1a; color: white; }
+        .waveform-display { 
+            width: 600px; 
+            height: 200px; 
+            background: #000; 
+            border: 1px solid #333;
+            margin: 10px 0;
+        }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #10b981; color: white; }
+        .disconnected { background: #ef4444; color: white; }
+        .data-point { font-size: 12px; margin: 2px 0; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket 波形数据测试</h1>
+    
+    <div id="status" class="status disconnected">未连接</div>
+    
+    <div>
+        <h3>Z分量波形:</h3>
+        <canvas id="waveformZ" class="waveform-display" width="600" height="200"></canvas>
+    </div>
+    
+    <div>
+        <h3>N分量波形:</h3>
+        <canvas id="waveformN" class="waveform-display" width="600" height="200"></canvas>
+    </div>
+    
+    <div>
+        <h3>E分量波形:</h3>
+        <canvas id="waveformE" class="waveform-display" width="600" height="200"></canvas>
+    </div>
+    
+    <div id="dataLog">
+        <h3>实时数据:</h3>
+    </div>
+
+    <script>
+        let ws = null;
+        let dataBuffers = { Z: [], N: [], E: [] };
+        const maxPoints = 500;
+        
+        const canvasZ = document.getElementById('waveformZ');
+        const canvasN = document.getElementById('waveformN');
+        const canvasE = document.getElementById('waveformE');
+        const ctxZ = canvasZ.getContext('2d');
+        const ctxN = canvasN.getContext('2d');
+        const ctxE = canvasE.getContext('2d');
+        
+        function connectWebSocket() {
+            const statusDiv = document.getElementById('status');
+            
+            ws = new WebSocket('ws://localhost:3000');
+            
+            ws.onopen = function() {
+                statusDiv.className = 'status connected';
+                statusDiv.innerHTML = '✓ WebSocket 连接成功 - 接收实时波形数据';
+                console.log('WebSocket connected');
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'waveform') {
+                        // 更新数据缓冲区
+                        dataBuffers.Z.push(data.values.Z);
+                        dataBuffers.N.push(data.values.N);
+                        dataBuffers.E.push(data.values.E);
+                        
+                        // 保持缓冲区大小
+                        if (dataBuffers.Z.length > maxPoints) {
+                            dataBuffers.Z.shift();
+                            dataBuffers.N.shift();
+                            dataBuffers.E.shift();
+                        }
+                        
+                        // 更新波形显示
+                        drawWaveform(ctxZ, dataBuffers.Z, '#10b981');
+                        drawWaveform(ctxN, dataBuffers.N, '#3b82f6');
+                        drawWaveform(ctxE, dataBuffers.E, '#f97316');
+                        
+                        // 更新数据日志
+                        const logDiv = document.getElementById('dataLog');
+                        const newEntry = document.createElement('div');
+                        newEntry.className = 'data-point';
+                        newEntry.innerHTML = `[${new Date().toLocaleTimeString()}] Z: ${data.values.Z.toFixed(3)}, N: ${data.values.N.toFixed(3)}, E: ${data.values.E.toFixed(3)}`;
+                        logDiv.appendChild(newEntry);
+                        
+                        // 限制日志条目数量
+                        if (logDiv.children.length > 20) {
+                            logDiv.removeChild(logDiv.firstChild);
+                        }
+                    }
+                    
+                    if (data.type === 'detections') {
+                        console.log('Detection received:', data);
+                        const logDiv = document.getElementById('dataLog');
+                        const detectionEntry = document.createElement('div');
+                        detectionEntry.className = 'data-point';
+                        detectionEntry.style.color = '#ef4444';
+                        detectionEntry.innerHTML = `[${new Date().toLocaleTimeString()}] ⚡ 震相检测: ${data.detections.map(d => `${d.phase}(${d.probability.toFixed(2)})`).join(', ')}`;
+                        logDiv.appendChild(detectionEntry);
+                    }
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                statusDiv.className = 'status disconnected';
+                statusDiv.innerHTML = '✗ WebSocket 连接错误';
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = function() {
+                statusDiv.className = 'status disconnected';
+                statusDiv.innerHTML = '✗ WebSocket 连接已关闭';
+                console.log('WebSocket disconnected');
+                // 尝试重连
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        
+        function drawWaveform(ctx, data, color) {
+            const width = ctx.canvas.width;
+            const height = ctx.canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
+            
+            // 绘制网格
+            ctx.strokeStyle = '#262626';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < width; i += 50) {
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, height);
+            }
+            ctx.stroke();
+            
+            // 绘制基线
+            ctx.strokeStyle = '#404040';
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+            
+            // 绘制波形
+            if (data.length > 1) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const step = width / maxPoints;
+                data.forEach((val, i) => {
+                    const x = i * step;
+                    const y = (height / 2) - (val * (height / 2.5));
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+        }
+        
+        // 页面加载时连接WebSocket
+        window.onload = function() {
+            connectWebSocket();
+        };
+    </script>
+</body>
+</html>

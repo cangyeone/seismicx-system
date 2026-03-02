@@ -4,6 +4,154 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import * as ort from "onnxruntime-node";
 import path from "path";
+import { EarthquakeDAO } from "./src/database/earthquakeDAO";
+import { StationDAO } from "./src/database/stationDAO";
+
+// --- Database Initialization ---
+console.log("Initializing database...");
+try {
+  // Import database initialization
+  await import("./src/database/init");
+  console.log("Database initialized successfully");
+} catch (error) {
+  console.error("Database initialization failed:", error);
+}
+
+// --- Real-time Data Sync Functions ---
+
+// 定期从USGS获取最新地震数据
+async function syncEarthquakeData() {
+  try {
+    const response = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson");
+    const data = await response.json();
+    
+    const newEarthquakes = [];
+    for (const feature of data.features) {
+      const earthquake = {
+        id: feature.id,
+        time: feature.properties.time,
+        latitude: feature.geometry.coordinates[1],
+        longitude: feature.geometry.coordinates[0],
+        depth: feature.geometry.coordinates[2],
+        mag: feature.properties.mag,
+        magType: feature.properties.magType,
+        place: feature.properties.place,
+        updated: feature.properties.updated,
+        tz: feature.properties.tz,
+        url: feature.properties.url,
+        detail: feature.properties.detail,
+        felt: feature.properties.felt,
+        cdi: feature.properties.cdi,
+        mmi: feature.properties.mmi,
+        alert: feature.properties.alert,
+        status: feature.properties.status,
+        tsunami: feature.properties.tsunami,
+        sig: feature.properties.sig,
+        net: feature.properties.net,
+        code: feature.properties.code,
+        ids: feature.properties.ids,
+        sources: feature.properties.sources,
+        types: feature.properties.types,
+        nst: feature.properties.nst,
+        dmin: feature.properties.dmin,
+        rms: feature.properties.rms,
+        gap: feature.properties.gap,
+        magSource: feature.properties.magSource,
+        type: feature.properties.type,
+        title: feature.properties.title
+      };
+      
+      EarthquakeDAO.upsertEarthquake(earthquake);
+      newEarthquakes.push(earthquake);
+    }
+    
+    console.log(`Synced ${newEarthquakes.length} new earthquakes`);
+    return newEarthquakes;
+  } catch (error) {
+    console.error("Failed to sync earthquake data:", error);
+    return [];
+  }
+}
+
+// 定期获取台站数据
+async function syncStationData() {
+  try {
+    // 使用正确的USGS台站API端点
+    const networks = ['IU', 'US', 'MN']; // 主要地震台网
+    let allStations: any[] = [];
+    
+    for (const network of networks) {
+      try {
+        const response = await fetch(`https://earthquake.usgs.gov/fdsnws/station/1/query?format=geojson&level=station&net=${network}`);
+        if (response.ok) {
+          const data = await response.json();
+          allStations = allStations.concat(data.features || []);
+          console.log(`Synced ${data.features?.length || 0} stations from network ${network}`);
+        }
+      } catch (netError) {
+        console.log(`Failed to sync network ${network}:`, netError);
+      }
+    }
+    
+    if (allStations.length === 0) {
+      // 如果API失败，使用备用数据源或模拟数据
+      console.log("Using simulated station data");
+      allStations = [
+        {
+          properties: {
+            network: "SIM",
+            station: "ANMO",
+            site_name: "Albuquerque, New Mexico",
+            start_date: null,
+            end_date: null,
+            channels: []
+          },
+          geometry: {
+            coordinates: [-106.4572, 34.9459, 1850]
+          }
+        },
+        {
+          properties: {
+            network: "SIM", 
+            station: "BFO",
+            site_name: "Black Forest Observatory, Germany",
+            start_date: null,
+            end_date: null,
+            channels: []
+          },
+          geometry: {
+            coordinates: [8.3300, 48.3300, 750]
+          }
+        }
+      ];
+    }
+    
+    const stations = [];
+    for (const feature of allStations) {
+      const station = {
+        id: `${feature.properties.network || 'SIM'}.${feature.properties.station || 'UNK'}`,
+        network: feature.properties.network || 'SIM',
+        name: feature.properties.station || 'Unknown',
+        latitude: feature.geometry.coordinates[1],
+        longitude: feature.geometry.coordinates[0],
+        elevation: feature.geometry.coordinates[2],
+        site_name: feature.properties.site_name || 'Unknown Location',
+        start_date: feature.properties.start_date ? new Date(feature.properties.start_date).getTime() : null,
+        end_date: feature.properties.end_date ? new Date(feature.properties.end_date).getTime() : null,
+        channels: JSON.stringify(feature.properties.channels || [])
+      };
+      
+      stations.push(station);
+    }
+    
+    StationDAO.upsertStations(stations);
+    console.log(`Synced ${stations.length} total stations`);
+    return stations;
+  } catch (error) {
+    console.error("Failed to sync station data:", error);
+    return [];
+  }
+}
 
 // --- Seismic Picker Logic ---
 class SeismicPicker {
@@ -16,11 +164,30 @@ class SeismicPicker {
 
   async init() {
     try {
-      const modelPath = path.resolve("./pnsn_repo/pickers/china.rnn.pnsn.onnx");
-      this.session = await ort.InferenceSession.create(modelPath);
-      console.log("PNSN Model loaded successfully");
+      // Try multiple model paths
+      const modelPaths = [
+        "./pnsn_repo/pickers/china.rnn.pnsn.onnx",
+        "./pnsn_repo/pickers/rnn.onnx",
+        "./pnsn_repo/pickers/pnsn.v1.onnx"
+      ];
+      
+      for (const modelPath of modelPaths) {
+        try {
+          const fullPath = path.resolve(modelPath);
+          this.session = await ort.InferenceSession.create(fullPath);
+          console.log(`Model loaded successfully from: ${modelPath}`);
+          break;
+        } catch (e) {
+          console.log(`Failed to load model from ${modelPath}:`, (e as Error).message);
+          continue;
+        }
+      }
+      
+      if (!this.session) {
+        console.log("No models loaded, running in simulation mode");
+      }
     } catch (e) {
-      console.error("Failed to load PNSN model:", e);
+      console.error("Failed to load any model:", e);
     }
   }
 
@@ -124,6 +291,9 @@ class SeismicPicker {
 const picker = new SeismicPicker();
 picker.init();
 
+// 存储连接的客户端
+const connectedClients = new Set<WebSocket>();
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -134,9 +304,20 @@ async function startServer() {
 
   wss.on("connection", (ws) => {
     console.log("Client connected to waveform stream");
+    connectedClients.add(ws);
     
     let phase = 0;
     const station = "ANMO";
+    
+    // 发送初始数据
+    const initialEarthquakes = EarthquakeDAO.getLatestEarthquakes(20);
+    const stations = StationDAO.getAllStations();
+    
+    ws.send(JSON.stringify({
+      type: "initial_data",
+      earthquakes: initialEarthquakes,
+      stations: stations
+    }));
     
     // Simulate 3-component data at 100Hz
     const interval = setInterval(async () => {
@@ -165,7 +346,6 @@ async function startServer() {
         phase += 0.1;
 
         // Run inference every 100 samples (1 second) for responsiveness
-        // The user asked for 10s new data, but we can run it more frequently
         if (Math.floor(phase * 10) % 100 === 0) {
           const detections = await picker.runInference(station);
           if (detections.length > 0) {
@@ -181,33 +361,163 @@ async function startServer() {
 
     ws.on("close", () => {
       clearInterval(interval);
+      connectedClients.delete(ws);
       console.log("Client disconnected");
     });
   });
 
+  // 定期同步数据到所有客户端
+  setInterval(async () => {
+    const newEarthquakes = await syncEarthquakeData();
+    const stations = await syncStationData();
+    
+    // 广播新数据给所有连接的客户端
+    if (newEarthquakes.length > 0) {
+      const message = JSON.stringify({
+        type: "new_earthquakes",
+        earthquakes: newEarthquakes,
+        animation: {
+          center: {
+            lat: newEarthquakes[0].latitude,
+            lng: newEarthquakes[0].longitude
+          },
+          magnitude: newEarthquakes[0].mag
+        }
+      });
+      
+      connectedClients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
+    }
+  }, 60000); // 每分钟同步一次
+
   // API routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    const dbStats = EarthquakeDAO.getStatistics();
+    res.json({ 
+      status: "ok", 
+      timestamp: Date.now(),
+      database: dbStats
+    });
   });
 
   app.get("/api/earthquakes", async (req, res) => {
     try {
-      const response = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson");
-      const data = await response.json();
-      res.json(data);
+      const { hours = '24', limit = '50' } = req.query;
+      const earthquakes = EarthquakeDAO.getRecentEarthquakes(parseInt(hours as string));
+      res.json({
+        features: earthquakes.slice(0, parseInt(limit as string)).map(eq => ({
+          type: "Feature",
+          id: eq.id,
+          properties: {
+            mag: eq.mag,
+            place: eq.place,
+            time: eq.time,
+            updated: eq.updated,
+            tz: eq.tz,
+            url: eq.url,
+            detail: eq.detail,
+            felt: eq.felt,
+            cdi: eq.cdi,
+            mmi: eq.mmi,
+            alert: eq.alert,
+            status: eq.status,
+            tsunami: eq.tsunami,
+            sig: eq.sig,
+            net: eq.net,
+            code: eq.code,
+            ids: eq.ids,
+            sources: eq.sources,
+            types: eq.types,
+            nst: eq.nst,
+            dmin: eq.dmin,
+            rms: eq.rms,
+            gap: eq.gap,
+            magType: eq.magType,
+            type: eq.type,
+            title: eq.title
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [eq.longitude, eq.latitude, eq.depth || 0]
+          }
+        })),
+        metadata: {
+          generated: Date.now(),
+          url: req.originalUrl,
+          title: "USGS Earthquakes",
+          status: 200,
+          api: "1.0",
+          count: earthquakes.length
+        }
+      });
     } catch (error) {
+      console.error("Earthquake API error:", error);
       res.status(500).json({ error: "Failed to fetch earthquakes" });
     }
   });
 
   app.get("/api/stations", async (req, res) => {
     try {
-      const response = await fetch("https://earthquake.usgs.gov/fdsnws/station/1/query?format=geojson&level=station&net=IU");
-      if (!response.ok) throw new Error("USGS Station service error");
-      const data = await response.json();
-      res.json(data);
+      // 支持手动同步参数
+      if (req.query.sync === 'true') {
+        await syncStationData();
+      }
+      
+      const stations = StationDAO.getAllStations();
+      res.json({
+        features: stations.map(station => ({
+          type: "Feature",
+          id: station.id,
+          properties: {
+            network: station.network,
+            station: station.name,
+            name: station.name,
+            site_name: station.site_name,
+            start_date: station.start_date,
+            end_date: station.end_date,
+            channels: JSON.parse(station.channels || '[]')
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [station.longitude, station.latitude, station.elevation || 0]
+          }
+        })),
+        metadata: {
+          generated: Date.now(),
+          count: stations.length
+        }
+      });
     } catch (error) {
+      console.error("Station API error:", error);
       res.status(500).json({ error: "Failed to fetch stations" });
+    }
+  });
+
+  app.get("/api/stations/:network", async (req, res) => {
+    try {
+      const { network } = req.params;
+      const stations = StationDAO.getStationsByNetwork(network);
+      res.json(stations);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch stations by network" });
+    }
+  });
+
+  app.get("/api/stats", async (req, res) => {
+    try {
+      const earthquakeStats = EarthquakeDAO.getStatistics();
+      const stationStats = StationDAO.getStatistics();
+      
+      res.json({
+        earthquakes: earthquakeStats,
+        stations: stationStats,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch statistics" });
     }
   });
 
