@@ -1,0 +1,12 @@
+[Unit]
+Description=SeismicX dedicated HTTPS gateway
+After=network-online.target seismicx-visitor.service
+[Service]
+Type=forking
+PIDFile=/run/seismicx-nginx.pid
+ExecStart=/usr/sbin/nginx -c /opt/seismicx-gateway/nginx.conf
+ExecReload=/usr/sbin/nginx -c /opt/seismicx-gateway/nginx.conf -s reload
+ExecStop=/usr/sbin/nginx -c /opt/seismicx-gateway/nginx.conf -s quit
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target

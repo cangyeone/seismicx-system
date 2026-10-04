@@ -1,0 +1,27 @@
+.git
+.venv
+node_modules
+runtime
+external
+.env
+dist
+pnsn_repo
+*.db
+*.log
+
+# Local operational information and credentials must never enter a repository.
+*私密*
+*访问指南*
+.env.*
+!.env.example
+*.env
+!*.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.sqlite*
+*.db
+backups/

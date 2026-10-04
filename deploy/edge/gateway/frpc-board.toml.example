@@ -1,0 +1,11 @@
+serverAddr = "PUBLIC_RELAY_IP"
+serverPort = 7000
+auth.method = "token"
+auth.token = "EXISTING_FRPS_TOKEN"
+transport.tls.enable = true
+[[proxies]]
+name = "seismicx-edge-5012"
+type = "stcp"
+secretKey = "REPLACE_WITH_SHARED_RANDOM_SECRET"
+localIP = "127.0.0.1"
+localPort = 5012

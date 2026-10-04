@@ -1,0 +1,12 @@
+serverAddr = "127.0.0.1"
+serverPort = 7000
+auth.method = "token"
+auth.token = "EXISTING_FRPS_TOKEN"
+transport.tls.enable = true
+[[visitors]]
+name = "seismicx-edge-visitor"
+type = "stcp"
+serverName = "seismicx-edge-5012"
+secretKey = "REPLACE_WITH_SHARED_RANDOM_SECRET"
+bindAddr = "127.0.0.1"
+bindPort = 15012

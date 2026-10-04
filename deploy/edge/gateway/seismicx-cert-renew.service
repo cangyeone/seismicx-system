@@ -1,0 +1,5 @@
+[Unit]
+Description=Renew SeismicX short-lived IP TLS certificate
+[Service]
+Type=oneshot
+ExecStart=/opt/seismicx-gateway/venv/bin/certbot renew --cert-name seismicx-ip --quiet --deploy-hook "systemctl reload seismicx-gateway"

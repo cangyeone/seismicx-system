@@ -1,347 +1,127 @@
-<p align="left">
-  <img src="logo.png" alt="SeismoX System Logo"/>
-</p>
+# SeismicX 边缘推理平台 · 社区版
 
-# SystemX GLOBAL - 全球地震监测与 AI 实时拾取系统
+Python 为核心的地震监测与自动编目系统：全球公共台站与地震目录展示、FDSN / SeedLink 波形接入、PNSN 震相拾取、REAL 关联、网格定位、人工复核、历史事件回放与小模型分析。
 
-SystemX GLOBAL 是一款基于 React + Vite + D3.js 构建的高性能、沉浸式全球地震实时监测仪表盘。该系统不仅集成了 USGS (美国地质调查局) 的实时数据流，更深度集成了 **PNSN (SeismicX-PnSn)** AI 地震震相检测算法，实现了工业级的实时地震波形拾取与分析。
+**版本：2.1.0-community.1（2026-10-03 开发板阶段基线）。** 本仓库发布可独立部署的旧版社区快照，与后续优化版本保持版本差，不自动同步最新版代码或提交历史。范围见 [版本说明](docs/community-release.md)。
 
-## 🌟 核心功能
+支持 Linux / macOS CPU 和 BM1684X 开发板 NPU。首次安装请按 [其他设备部署指南](docs/portable-deployment.md) 操作；NPU 转换和服务安装见 [边缘部署指南](docs/edge-deployment.md)，历史实测见 [边缘验收](docs/edge-validation.md)。Windows 请使用 WSL2 Linux，本版代码使用 POSIX 文件锁，不支持原生 Windows Python。
 
-- **AI 实时震相拾取 (PNSN)**：集成 SeismicX-PnSn 深度学习模型，实时自动识别 `Pg`, `Sg`, `Pn`, `Sn` 震相。
-- **3-分量实时监控**：支持 Z (垂直)、N (北向)、E (东向) 三分量同步监测，采样率高达 **100Hz**。
-- **高性能推理引擎**：后端采用 **ONNX Runtime**，实现毫秒级的滑动窗口（102.4s）实时推理。
-- **实时全球地图**：基于 D3.js 的 Mercator 投影地图，实时标注全球地震事件与台站网络。
-- **地震事件追踪**：自动获取 USGS 最近 1 小时的地震数据，支持震级筛选与详细信息查看。
-- **沉浸式 UI 设计**：采用 Dark Mode 技术风格，针对大屏监控进行了深度优化，波形图支持动态 AI 标注。
-- **数据库持久化**：集成 SQLite 数据库，自动存储历史地震和台站数据
-- **实时动画效果**：新地震事件触发炫酷的爆炸动画和地图居中效果
-- **WebSocket实时通信**：双向实时数据流，支持即时更新和通知
-- **智能主题切换**：支持深色/浅色主题无缝切换，自动保存用户偏好
-- **专业数据采集**：基于Python ObsPy库，支持SeedLink和FDSN协议的实时地震数据采集
+这是可运行的本地/单机部署版本。全球台网的地图与波形接入已经实现；自动定位使用**区域模型**，必须按区域分组并验证速度模型。自动产物始终标为候选，不把外部 USGS 目录当作本系统检测结果。
 
-## 🛠️ 技术栈
+## 快速启动
 
-- **前端框架**: React 19
-- **构建工具**: Vite 6
-- **AI 推理**: ONNX Runtime (Node.js)
-- **数据可视化**: D3.js (地图渲染), Canvas API (高性能波形渲染)
-- **样式处理**: Tailwind CSS 4
-- **动画效果**: Motion (Framer Motion)
-- **后端服务**: Express + WebSocket (用于实时数据流与 AI 推理)
-- **数据库**: SQLite (Better-SQLite3) 用于数据持久化
-- **实时通信**: WebSocket 双向数据流
-- **图标库**: Lucide React
-- **专业地震数据采集**: Python + ObsPy + SeedLink/FDSN协议
+需要 Python 3.10–3.12、Node.js 22、Git。推荐 macOS/Linux。
 
-## 🚀 拾取算法说明 (PNSN Integration)
-
-系统集成了 [cangyeone/pnsn](https://github.com/cangyeone/pnsn) 拾取器：
-- **模型版本**: `china.rnn.pnsn.onnx` (针对中国大陆优化的 RNN 模型)
-- **输入窗口**: 10240 采样点 (约 102.4 秒)
-- **拾取策略**: 
-  - 60 秒三分量对齐逻辑。
-  - 自动缺失分量补偿（支持单分量降级运行）。
-  - 基于概率峰值的实时去重拾取。
-
-## 📁 项目结构
-
-```text
-├── src/
-│   ├── components/          # UI 组件 (地图、PNSN 波形显示、列表等)
-│   │   ├── AnimatedSeismicMap.tsx  # 带动画的新版地图组件
-│   │   ├── SeismicMap.tsx          # 原始地图组件
-│   │   └── WaveformDisplay.tsx     # 波形显示组件
-│   ├── hooks/               # React 自定义 Hooks
-│   │   └── useWebSocket.ts         # WebSocket 连接管理
-│   ├── database/            # 数据库相关
-│   │   ├── init.ts                 # 数据库初始化
-│   │   ├── earthquakeDAO.ts        # 地震数据访问对象
-│   │   └── stationDAO.ts           # 台站数据访问对象
-│   ├── services/            # 数据服务 (USGS API 交互)
-│   ├── App.tsx              # 主应用入口
-│   └── index.css            # 全局样式
-├── pnsn_repo/               # PNSN 模型资源库
-├── server.ts                # Express + ONNX 推理后端 + WebSocket 服务
-├── ecosystem.config.js      # PM2 部署配置
-├── seismic_data.db          # SQLite 数据库文件
-├── package.json             # 项目依赖与脚本
-└── vite.config.ts           # Vite 配置文件
-```
-
-## 🚀 快速开始
-
-### 环境要求
-- Node.js >= 18.0.0
-- npm >= 8.0.0
-
-### 安装依赖
 ```bash
-npm install
-```
-
-### 安装Python依赖（可选，用于专业数据采集）
-```bash
-pip install -r requirements.txt
-```
-
-### 启动开发服务器
-```bash
-npm run dev
-```
-
-### 启动Python数据采集器（可选）
-```bash
-npm run collector
-# 或者直接运行
-python seismic_collector.py
-```
-
-服务器将启动在 `http://localhost:3000`
-
-### 构建生产版本
-```bash
+git clone https://github.com/cangyeone/seismicx-system.git
+cd seismicx-system
+git switch --detach v2.1.0-community.1
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+npm ci
+.venv/bin/python scripts/install_algorithms.py
+cp .env.example .env
 npm run build
+.venv/bin/python scripts/admin_account.py
+.venv/bin/python scripts/start.py
 ```
 
-### 预览生产构建
+打开 <http://127.0.0.1:8000>；登录后台后 API 文档为 <http://127.0.0.1:8000/api/admin/docs>。`Ctrl-C` 终止启动器管理的进程。默认同步 USGS M2.5+ 过去一天目录和 EarthScope IU/II 台站。台站清单不等于在线台站；在台站页启用订阅后，采集器收到采样才显示在线。
+
+开发时分别运行 `npm run dev`、`npm run api`、`.venv/bin/python -m backend.worker` 和 `.venv/bin/python -m backend.collector --mode fdsn`。Vite 只负责界面，API/模型/数据处理均在 Python 中运行。原 `server.ts`、旧采集器和旧 `src/components` 保留作历史参考，不再是启动入口。
+
+## 功能与工作流
+
+- **监测总览**：全球地图、台站数量、在线状态、实时参考目录、候选事件、真实采样延迟。
+- **台站管理**：增加台站、启停订阅、连续三分量波形；SCEDC、EarthScope、GEOFON FDSN 支持独立选择。台站配置也可通过 PATCH API 修改。
+- **自动编目**：选择区域台站与 UTC 时间窗 → 下载原始 miniSEED → skill scan → 未滤波 PNSN v3 → Python REAL → skill grid location → 保存候选事件、震相、QC 与运行记录。
+- **人工复核**：震中距–时间波形支持以鼠标为中心滚轮缩放、滚动条平移；点击波形打开单台三分量窗口，Ctrl+1…6 切换 Pg/Sg/Pn/Sn/P/S，拖动调整或删除已有震相。可精确修改到时、震级及位置，右侧显示定位结果；修改后重新进入待复核状态。详见 [复核与目录分析](docs/review-analysis.md)。
+- **震级计算**：可调用 skill 的 seedtools DD1 ML，自动下载事件时段 StationXML 响应，选择 R11–R15 区域曲线；至少两台响应标定成功才写入候选 ML。原始 counts 不自动冒充标定震级。区域曲线适用性与强震 ML 饱和需要复核。
+- **历史监测**：人工输入 UTC 发震时间和位置，加入监测清单，下载历史波形、重新检测与人工复核。
+- **地震目录**：按来源和复核状态筛选，分页，导出 CSV / QuakeML；QuakeML 深度明确从 km 转换为 m。
+- **活动性分析**：每日事件数、震级分布、质量统计、数据完整性限制。点击“开始本地分析”调用本地小模型，右侧以 Markdown 展示报告与生成状态；公开固定报告共享五分钟缓存，管理员可自定义问题或选择在线接口。小模型只接收统计摘要，不接收原始波形或台站坐标。
+- **审计**：人工事件/震相修改保留原值与理由，用版本号防止覆盖其他操作者的修改。
+
+## 实时采集
+
 ```bash
-npm run preview
+# 自动处理已订阅台站；4 个有界下载线程
+.venv/bin/python -m backend.collector --mode fdsn
+
+# SeedLink：自动协商 v4，旧服务回退 ObsPy v3
+.venv/bin/python -m backend.collector --mode seedlink --server geofon.gfz.de:18000
+
+# 区域自动编目：按 5°×5° 分区、每批最多32台、至少3台
+.venv/bin/python -m backend.collector --mode fdsn --auto-catalog --window 300 --interval 300 --vp 6.2 --vs 3.5
 ```
 
-### 代码检查
-```bash
-npm run lint
+SeedLink v4 支持 miniSEED 2/3 数据负载；miniSEED 3 使用 EarthScope pymseed 解码，同时保留原包和算法可读的 miniSEED 2。每台独立持久化序号，断线退避，最大 4 MB 数据包，5 分钟分文件，限制磁盘容量。仅在波形写入后更新游标。v3 路径有有界内存队列与丢包计数，需通过 FDSN 补齐溢出/断线数据。公共服务的覆盖、延迟和可用性没有保证。
+
+`--auto-catalog` 用于 FDSN 分批模式；NPU 部署另运行 `python -m backend.edge.realtime`，自动消费 SeedLink 归档，按重叠区域持续关联定位。普通 CPU 部署可通过工作台或 FDSN 分批任务触发编目。不要在大台网直接用默认分区作为生产科学参数，边界事件可能漏检，生产需重叠分片和区域化参数。
+
+## 小模型
+
+`.env` 配置：
+
+```dotenv
+SEISMICX_LLM_BASE_URL=http://127.0.0.1:11434/v1
+SEISMICX_LLM_MODEL=gemma3:4b
+SEISMICX_LLM_API_KEY=
+SEISMICX_LLM_CONTEXT_TOKENS=7900
+SEISMICX_LLM_OUTPUT_TOKENS=1400
 ```
 
-## 🏭 生产环境部署
+仅发送统计摘要与用户问题，以 UTF-8 字节计数加封装余量作为保守输入上限，输入上限 + 最大输出严格小于 8000。服务端再次限制预算；密钥不编入前端。缺少模型服务时返回明确错误，纯统计分析仍可使用。模型输出为辅助解释，需要核查，尤其不能从缺失覆盖推断活动性变化或预测地震。
 
-### 构建生产版本
+Docker 中访问宿主机 Ollama 时，macOS 使用 `http://host.docker.internal:11434/v1`，不要使用容器自己的 `127.0.0.1`。
+
+## 算法来源与可追溯性
+
+使用用户指定 [seismicx-skills](https://github.com/cangyeone/seismicx-skills) 的 catalog 路由，实际调用 [seismicx-catalog-skill](https://github.com/cangyeone/seismicx-catalog-skill)，固定版本：
+
+`eebb87878ae27fbc8e33214c38c44fdeff9ba07b`
+
+PNSN v3：100 Hz，E/N/Z，Pg/Sg/Pn/Sn，SHA-256：
+
+`900dbf785d39b16fcaab5f53d04adddf6796b47f7aec17929abc6e7cfa5b2ddb`
+
+技能单独安装于忽略的 `external/`，保留上游 GPL-3.0 许可。运行产物在 `runtime/runs/<job-id>/`，包含输入 miniSEED、station/velocity CSV、扫描、拾取、关联分配、定位、模型校验信息、实际命令和日志，不提交 Git。原始数据不覆盖。
+
+网格定位是均匀速度区域基线，尚未配置区域 3D 走时表、NonLinLoc 或 SeismicX-Location checkpoint。不能把当前全球展示解读为经过验证的全球统一定位系统。
+
+## 稳定性与部署边界
+
+API、采集与算法 worker 为独立进程；SQLite WAL 只保存元数据和任务，原始波形存文件，前端用保峰值 min/max 包络。下载并发、时间窗、任务队列、内存包大小和缓存容量都有上限。重启时未完成的任务标记失败，保留现场供重试。
+
+单机先用 SQLite，避免在没有吞吐基准时引入 Kafka。海量部署需改为按台网/区域分片的采集服务、Kafka/Redis Streams、PostgreSQL、对象存储与多 worker；本版本**未经过万台级吞吐或长时间容灾验收**。见 [架构和运维](docs/architecture.md)。
+
 ```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+默认仅监听宿主机回环地址。公开首页、台站、目录、波形及演播无需口令；后台 `/admin` 使用独立用户名和密码，部署时执行 `.venv/bin/python scripts/admin_account.py` 初始化（Docker 可用 `docker compose exec api python scripts/admin_account.py`）。配置、任务明细及所有目录修改均由服务端校验管理员会话。原 `SEISMICX_API_TOKEN` 不再授予任何权限。公网部署须使用 HTTPS。`runtime/` 需要备份；不要直接将正在写入的 SQLite 文件拷贝为备份，应使用 SQLite backup API。
+
+## 后台与移动端
+
+后台可调整 P/S 震相置信度、REAL 关联门槛及搜索网格、定位速度/深度/网格、连续 NPU 推理周期和台站上限、本地与在线模型接口，并修改后台账号。参数保存到数据库，下一轮生效，任务保留配置快照；模型密钥不回传浏览器。页面适应手机和桌面，手机横屏演播自动切换波形、地震列表、AI、区域地质和科普卡片，竖屏支持滚动查看。详见 [后台管理说明](docs/administration.md)。
+
+## 验证
+
+```bash
+.venv/bin/python -m pytest tests -q
 npm run build
+npm audit
+# 有限真实数据测试，下载南加州6台3分钟波形；不自动改为已复核
+.venv/bin/python scripts/real_smoke.py
 ```
 
-### 生产环境启动
-```bash
-NODE_ENV=production npm run preview
-```
+真实测试方法和结果见 [验证记录](docs/validation.md)。CI 使用隔离临时数据库，不依赖外网波形或本地 LLM。
 
-### 使用PM2进行进程管理（推荐）
-```bash
-# 安装PM2
-npm install -g pm2
+底图为 Natural Earth 数据（public domain），通过原项目所用 GeoJSON 源缓存于 `public/world.geojson`。设计基准见 `docs/design/monitoring-concept.png`，界面不使用该概念图中的演示数值。
 
-# 启动应用
-pm2 start ecosystem.config.js
+## 地震演播与直播
 
-# 查看状态
-pm2 status
+首页地图支持固定显示和全屏动画演播：全球 / 中国地震台网速报插播、近期地震自动轮播、真实震中距—时间波形、本地 Qwen 解读、带来源的区域地质与科普。直播窗口可用 `/?view=broadcast`，并由 OBS 采集。参数、数据含义和部署方法见 [演播说明](docs/broadcast.md)。
 
-# 日志查看
-pm2 logs seismicx-system
-
-# 重启应用
-pm2 restart seismicx-system
-
-# 停止应用
-pm2 stop seismicx-system
-```
-
-### PM2配置文件 (ecosystem.config.js)
-```javascript
-module.exports = {
-  apps: [{
-    name: 'seismicx-system',
-    script: './server.ts',
-    interpreter: './node_modules/.bin/tsx',
-    instances: 1,
-    autorestart: true,
-    watch: false,
-    max_memory_restart: '1G',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3000
-    },
-    error_file: './logs/err.log',
-    out_file: './logs/out.log',
-    log_file: './logs/combined.log',
-    time: true
-  }]
-};
-```
-
-### Docker部署（可选）
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "run", "preview"]
-```
-
-### 系统服务配置（Linux systemd）
-创建 `/etc/systemd/system/seismicx.service`：
-```ini
-[Unit]
-Description=SeismicX Earthquake Monitoring System
-After=network.target
-
-[Service]
-Type=simple
-User=seismic
-WorkingDirectory=/path/to/seismicx-system
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/npm run preview
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用服务：
-```bash
-sudo systemctl enable seismicx.service
-sudo systemctl start seismicx.service
-```
-
-## 📊 监控与维护
-
-### Python数据采集器监控
-Python采集器提供专业的地震数据采集功能：
-- **实时地震事件获取**：从USGS API获取最新地震数据
-- **台站信息采集**：通过FDSNWS协议获取全球台站信息
-- **实时波形流**：通过SeedLink协议获取实时地震波形数据
-- **WebSocket通信**：与Node.js后端实时同步数据
-
-查看采集器状态：
-```bash
-# 查看采集器日志
-tail -f seismic_data_collector.log
-
-# 检查采集器进程
-ps aux | grep seismic_collector.py
-```
-
-### 性能监控
-```bash
-# PM2内置监控面板
-pm2 monit
-
-# 查看应用状态详情
-pm2 show seismicx-system
-
-# 内存和CPU使用情况
-pm2 list
-```
-
-### 健康检查端点
-应用提供了健康检查API：
-```
-GET /api/health
-响应: {"status": "ok"}
-```
-
-### 日志管理
-```bash
-# 实时查看日志
-pm2 logs seismicx-system --lines 100
-
-# 清理旧日志
-pm2 flush
-
-# 日志备份
-cp logs/*.log /backup/logs/
-```
-
-### 自动备份策略
-建议设置定时任务备份重要数据：
-```bash
-# 添加到 crontab
-0 2 * * * cd /path/to/seismicx-system && pm2 save
-0 3 * * * tar -czf /backup/seismicx-$(date +\%Y\%m\%d).tar.gz logs/ && rm -rf logs/*
-```
-
-### 安全加固建议
-1. **防火墙配置**：
-```bash
-ufw allow 3000/tcp
-ufw enable
-```
-
-2. **反向代理**（推荐使用Nginx）：
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-3. **SSL证书**（使用Let's Encrypt）：
-```bash
-certbot --nginx -d your-domain.com
-```
-
-## 🔧 开发配置
-
-### 端口配置
-默认端口为 `3000`，如需更改可在 `server.ts` 中修改：
-```javascript
-const PORT = 3000; // 修改为你需要的端口号
-```
-
-### 模型配置
-系统会自动尝试加载以下模型（按优先级排序）：
-1. `./pnsn_repo/pickers/china.rnn.pnsn.onnx`
-2. `./pnsn_repo/pickers/rnn.onnx` 
-3. `./pnsn_repo/pickers/pnsn.v1.onnx`
-
-如果所有模型都加载失败，系统将运行在模拟模式下，仍然可以查看完整的UI界面。
-
-### 环境变量
-创建 `.env` 文件来自定义配置：
-```env
-NODE_ENV=development
-PORT=3000
-```
-
-## 📝 开发说明
-
-- **数据源**: 地震事件通过 USGS 实时 GeoJSON API 获取。
-- **波形模拟**: 后端通过 WebSocket 模拟 100Hz 的三分量地震数据流，并实时喂入 PNSN 模型。
-- **推理性能**: 在 Node.js 环境下，单次 102.4s 窗口推理耗时通常小于 50ms。
-- **故障恢复**: 当模型加载失败时，系统自动切换到模拟模式，确保UI功能完整可用。
-
-## 🐛 常见问题
-
-### 端口被占用
-如果遇到 `EADDRINUSE` 错误，可以：
-1. 查看占用端口的进程：`lsof -i :3000`
-2. 终止进程：`kill -9 [PID]`
-3. 或者修改端口号后重启
-
-### 模型加载失败
-这是正常现象，系统会自动切换到模拟模式运行。所有UI功能仍然可用，只是缺少真实的AI拾取功能。
-
-### 依赖安装问题
-如果 `npm install` 失败，可以尝试：
-```bash
-npm cache clean --force
-rm -rf node_modules package-lock.json
-npm install
-```
-
----
-由 yuziye@cea-igp.ac.cn 开发完成。
+演播地图提供精细三维、简洁地球和平面地图，默认轻量地球。浏览器与服务器持久缓存地图；五张独立卡片默认显示，可在电脑上拖动、改变宽高、锁定或恢复布局，并在设置中分别隐藏。科普按事件轮换 12 个主题，由后台选定的本地小模型或在线大模型结合事件生成。地震列表每 3 秒更新，新速报在动画播放时优先插入；其他事件以点显示，台站点位可在演播设置开关。详见 [地图、缓存与卡片操作](docs/3d-map.md)。

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>SeismicX · 三维地图数据来源</title
+  ><style>
+    body {
+      font:
+        15px/1.85 system-ui,
+        sans-serif;
+      max-width: 850px;
+      margin: 50px auto;
+      padding: 0 24px;
+      background: #071320;
+      color: #c5dbe7;
+    }
+    h1,
+    h2 {
+      color: #f3f8fc;
+    }
+    a {
+      color: #6adecc;
+    }
+    li {
+      margin: 10px 0;
+    }
+    small {
+      color: #95acbc;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    td,
+    th {
+      text-align: left;
+      border-bottom: 1px solid #29414f;
+      padding: 12px;
+    }
+  </style>
+  <a href="/?view=broadcast">← 返回三维演播</a>
+  <h1>开放地图与三维地形</h1>
+  <p>
+    精细三维使用真实高程网格与公开影像；简洁地球和平面地图使用随应用保存的
+    Natural Earth 与 USGS
+    矢量数据，不显示实测地形网格。震中来自目录经纬度；震中光柱、光晕和脉冲属于示意特效，不代表震源深度、震波传播时间或预警倒计时。
+  </p>
+  <table>
+    <tr>
+      <th>图层</th>
+      <th>来源与处理</th>
+    </tr>
+    <tr>
+      <td>三维地形</td>
+      <td>
+        <a href="https://registry.opendata.aws/terrain-tiles/"
+          >Mapzen / Tilezen Terrain Tiles</a
+        >，通过 AWS 开放数据存储提供 Terrarium 高程瓦片。原图解码后以 65 × 65
+        网格双线性采样，最大瓦片级别 12，展示高程放大 2 倍。
+      </td>
+    </tr>
+    <tr>
+      <td>卫星底图</td>
+      <td>
+        <a
+          href="https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/"
+          >NASA Blue Marble</a
+        >
+        Shaded Relief & Bathymetry，通过
+        <a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a> 提供，最高级别
+        8。历史合成影像，不是实时卫星画面。
+      </td>
+    </tr>
+    <tr>
+      <td>地形晕渲</td>
+      <td>
+        NASA GIBS ASTER GDEM Color Shaded Relief，最高级别
+        12。颜色和阴影用于显示地形，不是地质岩性或断层分布。
+      </td>
+    </tr>
+    <tr>
+      <td>板块与震情</td>
+      <td>
+        板块边界来自 USGS
+        公开数据；地震来源、时间和复核状态随事件显示。地图最多显示最近 160
+        个符合筛选的事件及已启用台站。
+      </td>
+    </tr>
+  </table>
+  <h2>快速加载与本机保存</h2>
+  <p>
+    地图工具栏可切换精细三维、简洁地球和平面地图，两个轻量模式使用本地矢量文件。HTTPS
+    或本机访问时自动保存浏览过的地图，最多 128 MB；服务端另存最多 256 MB
+    瓦片。演播设置可预存全球低级别概览或清理本机地图缓存。实时目录与后台信息不进入地图缓存。
+  </p>
+  <p>
+    轻量底图：<a href="https://www.naturalearthdata.com/about/terms-of-use/"
+      >Natural Earth 公共领域数据</a
+    >；板块边界：USGS。球面光影和震中脉冲为视觉示意，不是高程或震波模拟。
+  </p>
+  <h2>坐标、覆盖与精度</h2>
+  <p>
+    事件使用 WGS84 经纬度，瓦片采用 Web Mercator（EPSG:3857），覆盖约南北纬
+    85.05°
+    之间；极区无该瓦片覆盖，以纯色椭球盖补齐球体，不代表极区实测地形。地形来源的年代、原始精度及垂直基准随地区不同。高程主要为相对海平面的
+    DEM 值，未进行统一大地水准面转换，以可视化近似放到 WGS84
+    椭球表面；不得从本图量取定位结果或精确地形剖面。海底高程保留为负值，不添加推测水深。沿瓦片边缘的网格采样及拼接裙边存在显示近似。
+  </p>
+  <p>
+    地图与区域地质卡片跟随同一事件。固定区域和全球模式锁定镜头，经纬度和区域距离在演播设置中调整。场景按需加载，数据源暂不可用时保留已有低精度瓦片或显示无高程的椭球底图，并显示状态；无
+    WebGL 时回退到简洁球面投影。卡片地形不构成 AI 地质结论的证据。
+  </p>
+  <h2>地形数据归属</h2>
+  <p>
+    <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md"
+      >完整来源与许可说明</a
+    >
+    ·
+    <a href="https://github.com/tilezen/joerd/blob/master/docs/data-sources.md"
+      >各地区数据源</a
+    >
+  </p>
+  <ul>
+    <li>
+      ArcticDEM terrain data DEM(s) were created from DigitalGlobe, Inc.,
+      imagery and funded under National Science Foundation awards 1043681,
+      1559691, and 1542736.
+    </li>
+    <li>
+      Australia terrain data © Commonwealth of Australia (Geoscience Australia)
+      2017.
+    </li>
+    <li>
+      Austria terrain data © offene Daten Österreichs – Digitales Geländemodell
+      (DGM) Österreich.
+    </li>
+    <li>
+      Canada terrain data contains information licensed under the Open
+      Government Licence – Canada.
+    </li>
+    <li>
+      Europe terrain data produced using Copernicus data and information funded
+      by the European Union – EU-DEM layers.
+    </li>
+    <li>
+      Global ETOPO1 terrain data: U.S. National Oceanic and Atmospheric
+      Administration.
+    </li>
+    <li>Mexico terrain data source: INEGI, Continental relief, 2016.</li>
+    <li>
+      New Zealand terrain data Copyright 2011 Crown copyright (c) Land
+      Information New Zealand and the New Zealand Government (All rights
+      reserved).
+    </li>
+    <li>Norway terrain data © Kartverket.</li>
+    <li>
+      United Kingdom terrain data © Environment Agency copyright and/or
+      database right 2015. All rights reserved.
+    </li>
+    <li>
+      United States 3DEP (formerly NED) and global GMTED2010 and SRTM terrain
+      data courtesy of the U.S. Geological Survey.
+    </li>
+  </ul>
+  <p>
+    三维引擎：<a href="https://github.com/CesiumGS/cesium">CesiumJS</a
+    >（Apache-2.0）。底图无需 Cesium ion
+    账户或令牌。缓存对原始图片不作修改；高程采样及显示色彩调整由 SeismicX
+    执行，原数据提供者未对修改作出认可。
+  </p>
+  <small>数据接入说明更新：2026-10-03</small>
+</html>
